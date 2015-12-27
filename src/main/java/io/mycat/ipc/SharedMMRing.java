@@ -70,21 +70,27 @@ public class SharedMMRing {
 		return metaData;
 	}
 
-	private boolean tryReWindWrite(byte[] rawMsg, boolean firstRewind) {
-
-		long writeStartPos = this.getWriteStartAddr();
-		System.out.println("rewind write ,cur write addr :" + writeStartPos);
-		long nextDataPos = this.getNextDataAddr();
+	private boolean tryReWindWrite(byte[] rawMsg) {
 		int dataRealLen = getMsgTotalSpace(rawMsg);
+		long writeStartPos = this.getWriteStartAddr();
+		long nextDataPos = this.getNextDataAddr();
+		// System.out.println("rewind write ,cur write addr :" + writeStartPos +
+		// " nextDataPos " + nextDataPos
+		// + " data len:" + dataRealLen);
+
 		// enough space to write
 		if (writeStartPos + dataRealLen < nextDataPos) {
-			if (!mm.compareAndSwapLong(8 + 8, writeStartPos, writeStartPos + dataRealLen)) {
+			if (!mm.compareAndSwapLong(8, writeStartPos, writeStartPos + dataRealLen)) {
 				return false;
 			}
 			// write data
 			writeMsg(writeStartPos, rawMsg);
-			// update prev data's next flag to rewind
-			mm.putByteVolatile(writeStartPos - 1, firstRewind ? MASK_NEXT_REWIND : FLAG_NEXT_ADJACENT);
+			if (writeStartPos == this.getStartPos() + 1) {// first rewind write
+															// update prev
+															// data's next flag
+															// to rewind
+				mm.putByteVolatile(nextDataPos, MASK_NEXT_REWIND);
+			}
 
 			return true;
 		} else {
@@ -115,13 +121,13 @@ public class SharedMMRing {
 				System.out.println("rewind write start Pos " + writeStartPos);
 				// try rewind write
 				// first set writeStartPos to start of queue
-				mm.compareAndSwapLong(8, writeStartPos, this.getStartPos()+1);
-				return tryReWindWrite(rawMsg, true);
+				mm.compareAndSwapLong(8, writeStartPos, this.getStartPos() + 1);
+				return tryReWindWrite(rawMsg);
 			}
 
 		} else {// rewind from begin ,try wrap write
 			System.out.println("write rewindw start Pos " + writeStartPos);
-			return tryReWindWrite(rawMsg, false);
+			return tryReWindWrite(rawMsg);
 		}
 
 	}
@@ -155,10 +161,10 @@ public class SharedMMRing {
 			break;
 		}
 		case MASK_NEXT_REWIND: {
-			dataStartPos = this.getStartPos();
-			int dataLength = mm.getShort(dataStartPos + 1);
+			long newDataStartPos = this.getStartPos();
+			int dataLength = mm.getShort(newDataStartPos + 1);
 			msg = new byte[dataLength];
-			long nextDataStartAddr = dataStartPos + MSG_PADDING_LENGTH;
+			long nextDataStartAddr = newDataStartPos + MSG_PADDING_LENGTH;
 			mm.getBytes(nextDataStartAddr, msg, 0, dataLength);
 			mm.compareAndSwapLong(0, dataStartPos, nextDataStartAddr + dataLength);
 			break;
