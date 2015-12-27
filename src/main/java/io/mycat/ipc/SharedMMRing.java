@@ -71,7 +71,9 @@ public class SharedMMRing {
 	}
 
 	private boolean tryReWindWrite(byte[] rawMsg, boolean firstRewind) {
+
 		long writeStartPos = this.getWriteStartAddr();
+		System.out.println("rewind write ,cur write addr :" + writeStartPos);
 		long nextDataPos = this.getNextDataAddr();
 		int dataRealLen = getMsgTotalSpace(rawMsg);
 		// enough space to write
@@ -99,7 +101,7 @@ public class SharedMMRing {
 			int dataRealLen = getMsgTotalSpace(rawMsg);
 			// enough space
 			if (writeStartPos + dataRealLen <= this.getEndPos()) {
-				//System.out.println("write start Pos " + writeStartPos);
+				// System.out.println("write start Pos " + writeStartPos);
 				// first update writeStart pos
 				if (!mm.compareAndSwapLong(8, writeStartPos, writeStartPos + dataRealLen)) {
 					return false;
@@ -113,7 +115,7 @@ public class SharedMMRing {
 				System.out.println("rewind write start Pos " + writeStartPos);
 				// try rewind write
 				// first set writeStartPos to start of queue
-				mm.compareAndSwapLong(8, writeStartPos, this.getStartPos());
+				mm.compareAndSwapLong(8, writeStartPos, this.getStartPos()+1);
 				return tryReWindWrite(rawMsg, true);
 			}
 
