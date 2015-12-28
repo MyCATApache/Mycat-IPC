@@ -87,7 +87,7 @@ public class SharedMMIPMemPool {
 		QueueMeta meta = new QueueMeta(groupId, rawLength, queueAddr);
 		SharedMMRing ring = new SharedMMRing(meta,mm.getAddr());
 		// update header
-		mm.putShortVolatile(0, curQueueCount++);
+		mm.putShortVolatile(0, ++curQueueCount);
 		// put map
 		allocateRings.put(Short.valueOf(groupId), ring);
 		this.lastRing = ring;
