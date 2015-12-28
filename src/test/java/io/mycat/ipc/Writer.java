@@ -7,8 +7,7 @@ public class Writer {
 		try {
 			SharedMMIPMemPool pool = new SharedMMIPMemPool("Coollf.dat", 1024 * 1024 * 100L, false);
 			SharedMMRing ring = pool.createNewRing((short)1,1024 * 1024 * 1);//1MB的内存区域
-			
-			while(true){				
+			while(true){
 				ring.addData(("hello           "+(i++)).getBytes("utf-8") );
 				Thread.sleep(2);
 //				if(System.currentTimeMillis() - start > 1000){

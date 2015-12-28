@@ -19,7 +19,7 @@ public class SharedMMIPMemPool {
 	private final int MAX_QUEUE_COUNT = 2048;
 	private final int MM_QUEUE_START = 2;
 	private final int MM_QUEUE_METADATA_LEN = 2 + 4;
-	private Map<Short, SharedMMRing> allocateRings = new HashMap<Short, SharedMMRing>();
+	private Map<Short, SharedMMRing> allocateRings = new HashMap<>();
 	private volatile SharedMMRing lastRing;
 
 	/**
@@ -55,16 +55,17 @@ public class SharedMMIPMemPool {
 		long queueAddr = getFirstQueueAddr();
 		for (int i = 0; i < curQueueCount; i++) {
 			short group = mm.getShortVolatile(addr);
-			addr += 4;
+			addr += 2;
 			int rawLength = mm.getIntVolatile(addr);
+			addr += 4;
 			QueueMeta meta = new QueueMeta(group, rawLength, queueAddr);
 			queueAddr += rawLength;
 			SharedMMRing ring = new SharedMMRing(meta,mm.getAddr());
-			allocateRings.put(Short.valueOf(group), ring);
+			allocateRings.put(group, ring);
 			latest = ring;
 		}
 		this.lastRing = latest;
-		mm.getLong(12290);
+		//mm.getLong(12290);
 	}
 
 	private long getFirstQueueAddr() {
@@ -89,7 +90,7 @@ public class SharedMMIPMemPool {
 		// update header
 		mm.putShortVolatile(0, ++curQueueCount);
 		// put map
-		allocateRings.put(Short.valueOf(groupId), ring);
+		allocateRings.put(groupId, ring);
 		this.lastRing = ring;
 		return ring;
 	}
@@ -106,4 +107,7 @@ public class SharedMMIPMemPool {
 		return (i + 0xfffL) & ~0xfffL;
 	}
 
+	public SharedMMRing getRing(short i) {
+		return allocateRings.get(i);
+	}
 }

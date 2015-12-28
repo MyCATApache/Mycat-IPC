@@ -8,7 +8,7 @@ package io.mycat.ipc;
  * 
  */
 public class SharedMMRing {
-	// means this message notewrited, writed ,readed
+	// means this message notwrited, writed ,readed
 	private static final byte FLAG_NO_NEXT = 0B0001;
 	private static final byte FLAG_NEXT_ADJACENT = 0B0010;
 	private static final byte MASK_NEXT_REWIND = 0B0100;

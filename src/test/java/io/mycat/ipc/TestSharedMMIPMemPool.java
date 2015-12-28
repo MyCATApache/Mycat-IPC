@@ -9,7 +9,9 @@ public class TestSharedMMIPMemPool {
 	public void testInitFromFile() throws Exception {
 		SharedMMIPMemPool pool = new SharedMMIPMemPool("testmm.dat", 1024 * 1024 * 100L, true);
 		Assert.assertTrue(pool.getQueueCountInMM() == 0);
-		SharedMMRing ring = pool.createNewRing((short) 1, 1024 * 1024 * 3);
+		//SharedMMRing ring = pool.createNewRing((short) 1, 1024 * 1024 * 3);
+		//reader应该是直接获得ring
+		SharedMMRing ring = pool.getRing((short) 1);
 		QueueMeta queMeta = new QueueMeta((short) 1, 1024 * 1024 * 3, 2 + 6 * 2048);
 		Assert.assertEquals(ring.getMetaData(), queMeta);
 		for (int i = 0; i < 100; i++) {
