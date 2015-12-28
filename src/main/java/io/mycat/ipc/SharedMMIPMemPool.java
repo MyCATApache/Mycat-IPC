@@ -80,7 +80,7 @@ public class SharedMMIPMemPool {
 		// write queue metedata info
 		mm.putShortVolatile(metaAddr, groupId);
 		metaAddr += 2;
-		mm.putLongVolatile(metaAddr, rawLength);
+		mm.putIntVolatile(metaAddr, rawLength);
 		// create queue
 		SharedMMRing prevQueue = this.lastRing;
 		long queueAddr = (prevQueue == null) ? getFirstQueueAddr() : prevQueue.getMetaData().getAddrEnd();
