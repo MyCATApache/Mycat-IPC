@@ -43,7 +43,6 @@ public class SharedMMIPMemPool {
 		init();
 	}
 
-	
 	public String getLoc() {
 		return loc;
 	}
@@ -55,16 +54,17 @@ public class SharedMMIPMemPool {
 		long queueAddr = getFirstQueueAddr();
 		for (int i = 0; i < curQueueCount; i++) {
 			short group = mm.getShortVolatile(addr);
-			addr += 4;
+			addr += 2;
 			int rawLength = mm.getIntVolatile(addr);
+			addr += 4;
 			QueueMeta meta = new QueueMeta(group, rawLength, queueAddr);
 			queueAddr += rawLength;
-			SharedMMRing ring = new SharedMMRing(meta,mm.getAddr());
-			allocateRings.put(Short.valueOf(group), ring);
+			SharedMMRing ring = new SharedMMRing(meta, mm.getAddr());
+			allocateRings.put(group, ring);
 			latest = ring;
 		}
 		this.lastRing = latest;
-		mm.getLong(12290);
+
 	}
 
 	private long getFirstQueueAddr() {
@@ -80,18 +80,22 @@ public class SharedMMIPMemPool {
 		// write queue metedata info
 		mm.putShortVolatile(metaAddr, groupId);
 		metaAddr += 2;
-		mm.putLongVolatile(metaAddr, rawLength);
+		mm.putIntVolatile(metaAddr, rawLength);
 		// create queue
 		SharedMMRing prevQueue = this.lastRing;
 		long queueAddr = (prevQueue == null) ? getFirstQueueAddr() : prevQueue.getMetaData().getAddrEnd();
 		QueueMeta meta = new QueueMeta(groupId, rawLength, queueAddr);
-		SharedMMRing ring = new SharedMMRing(meta,mm.getAddr());
+		SharedMMRing ring = new SharedMMRing(meta, mm.getAddr());
 		// update header
-		mm.putShortVolatile(0, curQueueCount++);
+		mm.putShortVolatile(0, ++curQueueCount);
 		// put map
-		allocateRings.put(Short.valueOf(groupId), ring);
+		allocateRings.put(groupId, ring);
 		this.lastRing = ring;
 		return ring;
+	}
+
+	public SharedMMRing getRing(short i) {
+		return allocateRings.get(i);
 	}
 
 	public SharedMMRing getLastRing() {

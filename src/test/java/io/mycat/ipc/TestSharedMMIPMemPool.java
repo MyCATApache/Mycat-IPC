@@ -14,7 +14,10 @@ public class TestSharedMMIPMemPool {
 		Assert.assertEquals(ring.getMetaData(), queMeta);
 		for (int i = 0; i < 100; i++) {
 			byte[] msg = ("Hellow "+i).getBytes();
-			ring.addData(msg);
+			while(!ring.putData(msg))
+			{
+				Thread.yield();
+			}
 			System.out.println("add messge "+i);
 		}
 		//read

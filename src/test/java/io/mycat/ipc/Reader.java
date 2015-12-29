@@ -4,17 +4,19 @@ public class Reader {
 	public static void main(String[] args) {
 		try {
 			SharedMMIPMemPool pool = new SharedMMIPMemPool("Coollf.dat", 1024 * 1024 * 100L, true);
-			SharedMMRing ring = pool.createNewRing((short)1,1024 * 1024 * 1);//1MB的内存区域
-			int readed=0;
-			while(true){
+			SharedMMRing ring = pool.createNewRing((short)1,1024*1024);
+			int readed = 0;
+			long curTime = System.currentTimeMillis();
+			while (true) {
 				byte[] dat = ring.pullData();
-				if(dat!=null){
+				if (dat != null) {
 					readed++;
-					if(readed%10000==9999)
-					{
-						System.out.println("readed "+readed+" cur msg:"+new String(dat));
+					if (readed % 10000 == 9999) {
+						System.out.println(
+								"readed " + readed + ",speed " + readed * 1000L / (System.currentTimeMillis() - curTime)
+										+ " msgs/second, cur msg:" + new String(dat));
 					}
-				}else{
+				} else {
 					Thread.yield();
 				}
 			}
