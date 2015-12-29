@@ -43,7 +43,6 @@ public class SharedMMIPMemPool {
 		init();
 	}
 
-	
 	public String getLoc() {
 		return loc;
 	}
@@ -66,6 +65,7 @@ public class SharedMMIPMemPool {
 		}
 		this.lastRing = latest;
 		//mm.getLong(12290);
+
 	}
 
 	private long getFirstQueueAddr() {
@@ -86,13 +86,17 @@ public class SharedMMIPMemPool {
 		SharedMMRing prevQueue = this.lastRing;
 		long queueAddr = (prevQueue == null) ? getFirstQueueAddr() : prevQueue.getMetaData().getAddrEnd();
 		QueueMeta meta = new QueueMeta(groupId, rawLength, queueAddr);
-		SharedMMRing ring = new SharedMMRing(meta,mm.getAddr());
+		SharedMMRing ring = new SharedMMRing(meta, mm.getAddr());
 		// update header
 		mm.putShortVolatile(0, ++curQueueCount);
 		// put map
 		allocateRings.put(groupId, ring);
 		this.lastRing = ring;
 		return ring;
+	}
+
+	public SharedMMRing getRing(short i) {
+		return allocateRings.get(i);
 	}
 
 	public SharedMMRing getLastRing() {
@@ -107,7 +111,4 @@ public class SharedMMIPMemPool {
 		return (i + 0xfffL) & ~0xfffL;
 	}
 
-	public SharedMMRing getRing(short i) {
-		return allocateRings.get(i);
-	}
 }

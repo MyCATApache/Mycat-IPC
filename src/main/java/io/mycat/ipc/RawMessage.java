@@ -1,5 +1,7 @@
 package io.mycat.ipc;
 
+import java.nio.ByteBuffer;
+
 public class RawMessage {
 
 	private short msgLength;
@@ -25,7 +27,5 @@ public class RawMessage {
 	}
 
 	
-	public int getRealLenth() {
-		return 2 + rawData.length + 1;
-	}
+
 }

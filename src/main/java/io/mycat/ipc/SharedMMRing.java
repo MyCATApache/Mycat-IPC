@@ -12,14 +12,14 @@ public class SharedMMRing {
 	private static final byte FLAG_NO_NEXT = 0B0001;
 	private static final byte FLAG_NEXT_ADJACENT = 0B0010;
 	private static final byte MASK_NEXT_REWIND = 0B0100;
-	private static final int MSG_PADDING_LENGTH = 2 + 1;// 2 bytes lenth and 1
-														// byte flag
+	private static final int MSG_PADDING_LENGTH = 2 + 1;// 2 bytes lenth and
+														// flag
 
 	private final UnsafeMemory mm;
 	private final QueueMeta metaData;
 
 	public long getStartPos() {
-		return 8 * 2 + 1;
+		return 8 * 2;
 	}
 
 	public long getEndPos() {
@@ -31,11 +31,12 @@ public class SharedMMRing {
 		this.mm = new UnsafeMemory(metaData.getAddr() + rawMemoryStartAddr, metaData.getRawLenth());
 		this.metaData = metaData;
 		// next data start addr
-		if (mm.compareAndSwapLong(0, 0, 8 + 8 + 1)) {
-			// cur write begin addr
-			mm.putLongVolatile(8, 8 + 8 + 2);
-			// data commited and none next flag
+		if (mm.compareAndSwapLong(0, 0, 8 + 8)) {
+			// no next data flag
 			mm.putByteVolatile(8 + 8, FLAG_NO_NEXT);
+			// cur write begin addr
+			mm.putLongVolatile(8, 8 + 8 + 1);
+
 		}
 
 	}
@@ -70,7 +71,7 @@ public class SharedMMRing {
 		return metaData;
 	}
 
-	private boolean tryReWindWrite(byte[] rawMsg) {
+	private int tryReWindWrite(byte[] rawMsg) {
 		int dataRealLen = getMsgTotalSpace(rawMsg);
 		long writeStartPos = this.getWriteStartAddr();
 		long nextDataPos = this.getNextDataAddr();
@@ -81,24 +82,42 @@ public class SharedMMRing {
 		// enough space to write
 		if (writeStartPos + dataRealLen < nextDataPos) {
 			if (!mm.compareAndSwapLong(8, writeStartPos, writeStartPos + dataRealLen)) {
-				return false;
+				return 1;
 			}
 			// write data
 			writeMsg(writeStartPos, rawMsg);
-			if (writeStartPos == this.getStartPos() + 1) {// first rewind write
-															// update prev
-															// data's next flag
-															// to rewind
+			if (writeStartPos == this.getStartPos()) {// first rewind write
+														// update prev
+														// data's next flag
+														// to rewind
 				mm.putByteVolatile(nextDataPos, MASK_NEXT_REWIND);
+			} else {
+				// update prev data's next flag
+				mm.putByteVolatile(writeStartPos - 1, FLAG_NEXT_ADJACENT);
 			}
 
-			return true;
+			return 0;
+		} else if ((writeStartPos > nextDataPos)) {
+			System.out.println(
+					"warn xxxxxxxxx " + writeStartPos + " nextDataPos " + nextDataPos + " data len:" + dataRealLen);
+			return 1;
 		} else {
-			throw new java.lang.RuntimeException("no space to write ");
+
+			System.out.println("no more space cur write addr :" + writeStartPos + " nextDataPos " + nextDataPos
+					+ " data len:" + dataRealLen);
+			 throw new java.lang.RuntimeException("no space to write ");
+			//return -1;
 		}
 	}
 
-	private boolean tryWriteData(byte[] rawMsg) {
+	/**
+	 * return 0 ,wirte ok , 1 ,try agagin ,-1 no space
+	 * 
+	 * @param rawMsg
+	 * @return
+	 */
+
+	private int tryWriteData(byte[] rawMsg) {
 
 		long nextDataBeginPos = this.getNextDataAddr();
 		long writeStartPos = getWriteStartAddr();
@@ -110,63 +129,82 @@ public class SharedMMRing {
 				// System.out.println("write start Pos " + writeStartPos);
 				// first update writeStart pos
 				if (!mm.compareAndSwapLong(8, writeStartPos, writeStartPos + dataRealLen)) {
-					return false;
+					return 1;
 				}
 				// write data
 				this.writeMsg(writeStartPos, rawMsg);
 				// update prev data's next flag
 				mm.putByteVolatile(writeStartPos - 1, FLAG_NEXT_ADJACENT);
-				return true;
+				return 0;
 			} else {
-				System.out.println("rewind write start Pos " + writeStartPos);
+				System.out.println("rewind write ,before, start Pos " + writeStartPos + " next " + nextDataBeginPos);
 				// try rewind write
 				// first set writeStartPos to start of queue
-				mm.compareAndSwapLong(8, writeStartPos, this.getStartPos() + 1);
+				mm.compareAndSwapLong(8, writeStartPos, this.getStartPos());
+				System.out.println("rewind write ,after, start Pos " + this.getWriteStartAddr() + " next " + this.getNextDataAddr());
 				return tryReWindWrite(rawMsg);
 			}
 
 		} else {// rewind from begin ,try wrap write
-			System.out.println("write rewindw start Pos " + writeStartPos);
+			// System.out.println("write rewindw start Pos " + writeStartPos);
 			return tryReWindWrite(rawMsg);
 		}
 
 	}
 
-	public void addData(byte[] rawMsg) {
-		boolean success = false;
-		for (int i = 0; i < 2; i++) {
-			if (success = tryWriteData(rawMsg)) {
-				break;
+	/**
+	 * if return false,means can't put ,ring is full
+	 * 
+	 * @param rawMsg
+	 * @return
+	 */
+	public boolean putData(byte[] rawMsg) {
+
+		for (int i = 0; i < 3; i++) {
+			int writeResult = tryWriteData(rawMsg);
+			switch (writeResult) {
+			case 0:
+				return true;
+			case 1:
+				continue;
+			case -1:
+				return false;
+
 			}
+
 		}
-		if (!success) {
-			throw new RuntimeException("can't addData,not enough memery");
-		}
+		return false;
 	}
 
 	public byte[] pullData() {
 		byte[] msg = null;
-		long dataStartPos = this.getNextDataAddr();
-		byte nextDataFlag = mm.getByteVolatile(dataStartPos);
+		long nextDataFlagPos = this.getNextDataAddr();
+		byte nextDataFlag = mm.getByteVolatile(nextDataFlagPos);
 		switch (nextDataFlag) {
 		case FLAG_NO_NEXT: {
+//			System.out.println(
+//					"no data to  read ,data next pos " + nextDataFlagPos + ",  write pos " + this.getWriteStartAddr());
 			break;
 		}
 		case FLAG_NEXT_ADJACENT: {
-			int dataLength = mm.getShort(dataStartPos + 1);
+			int dataLength = mm.getShort(nextDataFlagPos + 1);
 			msg = new byte[dataLength];
-			long nextDataStartAddr = dataStartPos + MSG_PADDING_LENGTH;
+			long nextDataStartAddr = nextDataFlagPos + MSG_PADDING_LENGTH;
 			mm.getBytes(nextDataStartAddr, msg, 0, dataLength);
-			mm.compareAndSwapLong(0, dataStartPos, nextDataStartAddr + dataLength);
+			mm.compareAndSwapLong(0, nextDataFlagPos, nextDataStartAddr + dataLength);
 			break;
 		}
 		case MASK_NEXT_REWIND: {
+			System.out.println("rewind read begin,data next pos " + nextDataFlagPos);
 			long newDataStartPos = this.getStartPos();
-			int dataLength = mm.getShort(newDataStartPos + 1);
+			int dataLength = mm.getShort(newDataStartPos);
 			msg = new byte[dataLength];
-			long nextDataStartAddr = newDataStartPos + MSG_PADDING_LENGTH;
-			mm.getBytes(nextDataStartAddr, msg, 0, dataLength);
-			mm.compareAndSwapLong(0, dataStartPos, nextDataStartAddr + dataLength);
+			mm.getBytes(newDataStartPos + 2, msg, 0, dataLength);
+			// prev data flag byte
+			long nextDataStartAddr = newDataStartPos + MSG_PADDING_LENGTH - 1 + dataLength;
+			mm.compareAndSwapLong(0, nextDataFlagPos, nextDataStartAddr);
+			System.out.println("rewind read ,data next pos " + nextDataStartAddr + ", data len: " + dataLength
+					+ " write pos " + this.getWriteStartAddr());
 			break;
 		}
 
