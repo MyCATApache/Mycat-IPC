@@ -71,7 +71,7 @@ public class SharedMMRing {
 		return metaData;
 	}
 
-	private int tryReWindWrite(byte[] rawMsg) {
+	private int tryReWindWrite(byte[] rawMsg, long lastWriteStartPos) {
 		int dataRealLen = getMsgTotalSpace(rawMsg);
 		long writeStartPos = this.getWriteStartAddr();
 		long nextDataPos = this.getNextDataAddr();
@@ -90,7 +90,9 @@ public class SharedMMRing {
 														// update prev
 														// data's next flag
 														// to rewind
-				mm.putByteVolatile(nextDataPos, MASK_NEXT_REWIND);
+				//mm.putByteVolatile(nextDataPos, MASK_NEXT_REWIND);
+				//fixed reader pending bug
+				mm.putByteVolatile(lastWriteStartPos - 1, MASK_NEXT_REWIND);
 			} else {
 				// update prev data's next flag
 				mm.putByteVolatile(writeStartPos - 1, FLAG_NEXT_ADJACENT);
@@ -142,12 +144,14 @@ public class SharedMMRing {
 				// first set writeStartPos to start of queue
 				mm.compareAndSwapLong(8, writeStartPos, this.getStartPos());
 				System.out.println("rewind write ,after, start Pos " + this.getWriteStartAddr() + " next " + this.getNextDataAddr());
-				return tryReWindWrite(rawMsg);
+				//last writeStartPos
+				return tryReWindWrite(rawMsg, writeStartPos);
 			}
 
 		} else {// rewind from begin ,try wrap write
 			// System.out.println("write rewindw start Pos " + writeStartPos);
-			return tryReWindWrite(rawMsg);
+			//last writeStartPos
+			return tryReWindWrite(rawMsg, writeStartPos);
 		}
 
 	}
