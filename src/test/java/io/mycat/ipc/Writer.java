@@ -5,7 +5,7 @@ public class Writer {
 		long i = 0;
 		long start = System.currentTimeMillis();
 		try {
-			SharedMMIPMemPool pool = new SharedMMIPMemPool("Coollf.dat", 1024 * 1024 * 100L, false);
+			SharedMMIPMemPool pool = new SharedMMIPMemPool("Coollf.dat3", 1024 * 1024 * 100L, false);
 			SharedMMRing ring = pool.getRing((short) 1);
 
 			while (true) {
