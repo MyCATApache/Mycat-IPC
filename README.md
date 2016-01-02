@@ -1,14 +1,17 @@
 Mycat IPC
 ---
-Mycat java进程间通信服务
+Mycat java进程间超高性能通信服务框架
+####特性
+   1. 使用共享内存映射的技术，多进程之间数据传递直接操作内存，性能极高
+   2. 实现了无锁多进程/多线程读写的逻辑，多个进程可以同时并发读写
+   3. HP ZBook笔记本测试，单一队列，两个进程通信，最高高达每秒3000万的消息传输
+
 
 
 ####使用方式
-	1. 启动 io.mycat.ipc.Reader
-	2. 启动 io.mycat.ipc.Writer
+	1. 启动 io.mycat.ipc.Reader 创建一个空白队列，等待和读取消息
+	2. 启动 io.mycat.ipc.Writer 写入消息
 
-    可以在进程间传输数据
 ####限制
-	1. 消费方速度要高于生产者
-	2. JDK 要求 SunJDK 1.8
+	1. JDK 要求 SunJDK 1.8
 	
