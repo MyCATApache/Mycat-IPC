@@ -12,6 +12,9 @@ Mycat java进程间超高性能通信服务框架
 	1. 启动 io.mycat.ipc.Reader 创建一个空白队列，等待和读取消息
 	2. 启动 io.mycat.ipc.Writer 写入消息
 
+HP ZBook 17上 在Eclipse里启动上述两个进程的测试结果截图
+![image](https://raw.githubusercontent.com/MyCATApache/Mycat-IPC/master/images/perf1.png)
+注意，由于Windows任务调度的问题，经常会有Read进程得不到调度而停顿的现象，从屏幕输出可以看到此现象。
 ####限制
 	1. JDK 要求 SunJDK 1.8
 	

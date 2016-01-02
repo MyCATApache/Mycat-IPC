@@ -14,6 +14,7 @@ public class Writer {
 				while (!ring.putData(data)) {
 					Thread.yield();
 				}
+				Thread.yield();
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
