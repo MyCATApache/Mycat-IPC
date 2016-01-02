@@ -252,6 +252,16 @@ public class UnsafeMemory {
 
 	}
 
+	protected void lazySetLong(long pos, long val) {
+		unsafe.putOrderedLong(null, pos + addr, val);
+
+	}
+
+	protected void lazySetInt(long pos, int val) {
+		unsafe.putOrderedInt(null, pos + addr, val);
+
+	}
+
 	/**
 	 * Reads a buffer of data.
 	 * 

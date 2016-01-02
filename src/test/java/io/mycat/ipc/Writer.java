@@ -14,7 +14,11 @@ public class Writer {
 				while (!ring.putData(data)) {
 					Thread.yield();
 				}
-				Thread.yield();
+				//Thread.sleep(2);
+//				if(i==100000)
+//				{
+//					break;
+//				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
