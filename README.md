@@ -22,5 +22,5 @@ HP ZBook 17上 在Eclipse里启动上述两个进程的测试结果截图
 
 
 ####内存格式图
-
+![image](https://github.com/huangll99/Mycat-IPC/blob/master/images/memory-format.jpg)
 	
