@@ -1,6 +1,5 @@
 package io.mycat.ipc;
 
-import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -13,12 +12,11 @@ import java.util.Map;
  *
  */
 public class SharedMMIPMemPool {
-	private final long addr, size;
 	private final String loc;
 	private UnsafeMemory mm;
 	private final int MAX_QUEUE_COUNT = 2048;
 	private final int MM_QUEUE_START = 2;
-	private final int MM_QUEUE_METADATA_LEN = 2 + 4;
+	private final int MM_QUEUE_METADATA_LEN = 2 + 4 + 1;
 	private Map<Short, SharedMMRing> allocateRings = new HashMap<Short, SharedMMRing>();
 	private volatile SharedMMRing lastRing;
 
@@ -32,14 +30,10 @@ public class SharedMMIPMemPool {
 	 * @throws Exception
 	 *             in case there was an error creating the memory mapped file
 	 */
-	protected SharedMMIPMemPool(final String loc, long len, boolean createNewFile) throws Exception {
-		if (createNewFile) {
-			new File(loc).delete();
-		}
+	public SharedMMIPMemPool(final String loc, long len, boolean createNewFile) throws Exception {
+
 		this.loc = loc;
-		this.size = roundTo4096(len);
-		this.addr = UnsafeMemory.mapAndSetOffset(loc, size);
-		this.mm = new UnsafeMemory(addr, size);
+		this.mm = UnsafeMemory.mapAndSetOffset(loc, len, createNewFile, 0, len);
 		init();
 	}
 
@@ -57,7 +51,9 @@ public class SharedMMIPMemPool {
 			addr += 2;
 			int rawLength = mm.getIntVolatile(addr);
 			addr += 4;
-			QueueMeta meta = new QueueMeta(group, rawLength, queueAddr);
+			byte storageType = mm.getByteVolatile(addr);
+			addr += 1;
+			QueueMeta meta = new QueueMeta(group, rawLength, queueAddr, storageType);
 			queueAddr += rawLength;
 			SharedMMRing ring = new SharedMMRing(meta, mm.getAddr());
 			allocateRings.put(group, ring);
@@ -71,7 +67,7 @@ public class SharedMMIPMemPool {
 		return MM_QUEUE_START + MM_QUEUE_METADATA_LEN * MAX_QUEUE_COUNT;
 	}
 
-	public SharedMMRing createNewRing(short groupId, int rawLength) {
+	public synchronized SharedMMRing createNewRing(short groupId, int rawLength, byte storageType) {
 		short curQueueCount = getQueueCountInMM();
 		if (curQueueCount >= MAX_QUEUE_COUNT) {
 			return null;
@@ -81,11 +77,13 @@ public class SharedMMIPMemPool {
 		mm.putShortVolatile(metaAddr, groupId);
 		metaAddr += 2;
 		mm.putIntVolatile(metaAddr, rawLength);
+		metaAddr += 4;
+		mm.putByteVolatile(metaAddr, storageType);
 		// create queue
 		SharedMMRing prevQueue = this.lastRing;
 		long queueAddr = (prevQueue == null) ? getFirstQueueAddr() : prevQueue.getMetaData().getAddrEnd();
-		QueueMeta meta = new QueueMeta(groupId, rawLength, queueAddr);
-		SharedMMRing ring = new SharedMMRing(meta, mm.getAddr());
+		QueueMeta meta = new QueueMeta(groupId, rawLength, queueAddr, storageType);
+		SharedMMRing ring = new SharedMMRing(meta,mm.getAddr());
 		// update header
 		mm.putShortVolatile(0, ++curQueueCount);
 		// put map
@@ -104,10 +102,6 @@ public class SharedMMIPMemPool {
 
 	public short getQueueCountInMM() {
 		return mm.getShortVolatile(0);
-	}
-
-	private static long roundTo4096(long i) {
-		return (i + 0xfffL) & ~0xfffL;
 	}
 
 }

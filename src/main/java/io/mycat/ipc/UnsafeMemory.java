@@ -1,21 +1,23 @@
 package io.mycat.ipc;
 
+import java.io.File;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.channels.FileChannel;
 
+import io.mycat.ipc.util.Util;
 import sun.misc.Unsafe;
 import sun.nio.ch.FileChannelImpl;
 
 @SuppressWarnings("restriction")
 public class UnsafeMemory {
-	private static final Unsafe unsafe;
-	private static final Method mmap;
-	private static final Method unmmap;
+	public static final Unsafe unsafe;
+	public static final Method mmap;
+	public static final Method unmmap;
 	public static final int BYTE_ARRAY_OFFSET;
 
-	private final long addr, size;
+	private final long addr, startPos, size;
 
 	static {
 		try {
@@ -23,25 +25,35 @@ public class UnsafeMemory {
 			singleoneInstanceField.setAccessible(true);
 			unsafe = (Unsafe) singleoneInstanceField.get(null);
 			mmap = getMethod(FileChannelImpl.class, "map0", int.class, long.class, long.class);
+			mmap.setAccessible(true);
 			unmmap = getMethod(FileChannelImpl.class, "unmap0", long.class, long.class);
+			unmmap.setAccessible(true);
 			BYTE_ARRAY_OFFSET = unsafe.arrayBaseOffset(byte[].class);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
 	}
 
-	public static long mapAndSetOffset(String mapFile, long size) throws Exception {
-		final RandomAccessFile backingFile = new RandomAccessFile(mapFile, "rw");
-		backingFile.setLength(size);
-		final FileChannel ch = backingFile.getChannel();
-		long addr = (long) mmap.invoke(ch, 1, 0L, size);
+	public static UnsafeMemory mapAndSetOffset(final String loc, long fileSize, boolean createNewFile, long startPos,
+			long mapSize) throws Exception {
+		long size = 0;
+		RandomAccessFile backingFile = new RandomAccessFile(loc, "rw");
+		if (createNewFile) {
+			new File(loc).delete();
+			size = Util.roundTo4096(fileSize);
+			backingFile.setLength(size);
+		}
+		FileChannel ch = backingFile.getChannel();
+		long addr = (long) mmap.invoke(ch, 1, startPos, mapSize);
 		ch.close();
 		backingFile.close();
-		return addr;
+		return new UnsafeMemory(addr, startPos, mapSize);
+
 	}
 
-	public UnsafeMemory(long addr, long size) {
+	public UnsafeMemory(long addr, long startPos, long size) {
 		this.addr = addr;
+		this.startPos = startPos;
 		this.size = size;
 	}
 
@@ -51,6 +63,18 @@ public class UnsafeMemory {
 
 	public long getEndAddr() {
 		return addr + size;
+	}
+	public long getRelovePos(long abPos)
+	{
+		return abPos-startPos;
+	}
+
+	public long getStartPos()
+	{
+		return this.startPos;
+	}
+	public long getEndPos() {
+		return size + startPos;
 	}
 
 	public long getSize() {
@@ -65,6 +89,7 @@ public class UnsafeMemory {
 
 	protected void unmap() throws Exception {
 		unmmap.invoke(null, addr, this.size);
+	
 	}
 
 	/**

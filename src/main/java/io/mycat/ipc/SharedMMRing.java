@@ -8,34 +8,48 @@ package io.mycat.ipc;
  * 
  */
 public class SharedMMRing {
-	// means this message notewrited, writed ,readed
-	private static final byte FLAG_NO_NEXT = 0B0001;
-	private static final byte FLAG_NEXT_ADJACENT = 0B0010;
-	private static final byte MASK_NEXT_REWIND = 0B0100;
-	private static final int MSG_PADDING_LENGTH = 2 + 1;// 2 bytes lenth and
+	public static final byte STORAGE_PRIMARY=0;
+	public static final byte STORAGE_EXTEND=1;
+	public static final byte STORAGE_EXT_FILE=2;
+	// means next data condition
+	public static final byte FLAG_NO_NEXT = 0B0001;
+	public static final byte FLAG_NEXT_ADJACENT = 0B0010;
+	public static final byte MASK_NEXT_REWIND = 0B0100;
+	public static final byte MASK_NEXT_EXTEND_RING = 0B0101;
+	public static final byte MASK_NEXT_BLOCK = 0B0110;
+	public static final int MSG_PADDING_LENGTH = 2 + 1;// 2 bytes lenth and
 														// flag
 
 	private final UnsafeMemory mm;
 	private final QueueMeta metaData;
-
-	public long getStartPos() {
+	
+	public final long getStartPos() {
 		return 8 * 2;
 	}
 
-	public long getEndPos() {
+	public final long getWriteIndexPos() {
+		return 8;
+	}
+
+	public final long getNextDataFlagIndexPos() {
+		return 0;
+	}
+
+	public final long getEndPos() {
 		return mm.getSize();
 	}
 
 	public SharedMMRing(QueueMeta metaData, long rawMemoryStartAddr) {
 		super();
-		this.mm = new UnsafeMemory(metaData.getAddr() + rawMemoryStartAddr, metaData.getRawLenth());
+		this.mm = new UnsafeMemory(metaData.getAddr() + rawMemoryStartAddr,rawMemoryStartAddr, metaData.getRawLenth());
 		this.metaData = metaData;
 		// next data start addr
-		if (mm.compareAndSwapLong(0, 0, 8 + 8)) {
-			// no next data flag
-			mm.putByte(8 + 8, FLAG_NO_NEXT);
+		if (mm.compareAndSwapLong(getNextDataFlagIndexPos(), 0, this.getStartPos())) {
+
 			// cur write begin addr
-			mm.putLongVolatile(8, 8 + 8 + 1);
+			mm.putLongVolatile(getWriteIndexPos(),this.getStartPos()+1);
+			// no next data flag
+			mm.putByte(getStartPos(), FLAG_NO_NEXT);
 
 		}
 
@@ -81,7 +95,7 @@ public class SharedMMRing {
 
 		// enough space to write
 		if (writeStartPos + dataRealLen < nextDataPos) {
-			if (!mm.compareAndSwapLong(8, writeStartPos, writeStartPos + dataRealLen)) {
+			if (!mm.compareAndSwapLong(getWriteIndexPos(), writeStartPos, writeStartPos + dataRealLen)) {
 				return 1;
 			}
 			// write data
@@ -119,7 +133,7 @@ public class SharedMMRing {
 			if (writeStartPos + dataRealLen <= this.getEndPos()) {
 				// System.out.println("write start Pos " + writeStartPos);
 				// first update writeStart pos
-				if (!mm.compareAndSwapLong(8, writeStartPos, writeStartPos + dataRealLen)) {
+				if (!mm.compareAndSwapLong(getWriteIndexPos(), writeStartPos, writeStartPos + dataRealLen)) {
 					return 1;
 				}
 				// write data
@@ -133,7 +147,7 @@ public class SharedMMRing {
 				// try rewind write
 
 				// first set writeStartPos to start of queue
-				if (mm.compareAndSwapLong(8, writeStartPos, this.getStartPos() + 1)) {
+				if (mm.compareAndSwapLong(getWriteIndexPos(), writeStartPos, this.getStartPos() + 1)) {
 					// set no more data flag
 					mm.putByte(this.getStartPos(), FLAG_NO_NEXT);
 					// set previous data's next flag to rewind
@@ -181,7 +195,7 @@ public class SharedMMRing {
 	private byte[] readData(long prevNextDataFlagPos, long curDataFlagPos) {
 		int dataLength = mm.getShort(curDataFlagPos + 1);
 		long nextDataStartAddr = curDataFlagPos + MSG_PADDING_LENGTH;
-		if (!mm.compareAndSwapLong(0, prevNextDataFlagPos, nextDataStartAddr + dataLength)) {
+		if (!mm.compareAndSwapLong(getNextDataFlagIndexPos(), prevNextDataFlagPos, nextDataStartAddr + dataLength)) {
 			return null;
 		}
 		byte[] msg = new byte[dataLength];
@@ -212,7 +226,7 @@ public class SharedMMRing {
 			 */
 			switch (newNextDataFlag) {
 			case FLAG_NO_NEXT: {
-				mm.compareAndSwapLong(0, nextDataFlagPos, this.getStartPos());
+				mm.compareAndSwapLong(getNextDataFlagIndexPos(), nextDataFlagPos, this.getStartPos());
 				break;
 			}
 			case FLAG_NEXT_ADJACENT: {
