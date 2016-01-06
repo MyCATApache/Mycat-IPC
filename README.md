@@ -19,4 +19,8 @@ HP ZBook 17上 在Eclipse里启动上述两个进程的测试结果截图
 注意，由于Windows任务调度的问题，经常会有Read进程得不到调度而停顿的现象，从屏幕输出可以看到此现象。
 ####限制
 	1. JDK 要求 SunJDK 1.8
+
+
+####内存格式图
+![image](https://github.com/huangll99/Mycat-IPC/blob/master/images/memory-format.jpg)
 	
